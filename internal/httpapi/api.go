@@ -39,8 +39,12 @@ func decodeJSON(r *http.Request, v any) error {
 	if err := dec.Decode(v); err != nil {
 		return fmt.Errorf("%w: %v", ErrBadJSON, err)
 	}
+	// 第二次解码用于检测首个 JSON 对象之后的任何多余内容。
+	// io.EOF 表示确实没有更多内容（仅可能有空白）；其余任何结果——
+	// 成功解码出第二个值，或遇到非法 JSON（如尾随 "garbage"）——
+	// 都说明请求体不是单个 JSON 对象，必须拒绝。
 	var extra any
-	if dec.Decode(&extra) == nil {
+	if err := dec.Decode(&extra); err == nil || !errors.Is(err, io.EOF) {
 		return ErrBadJSON
 	}
 	return nil
